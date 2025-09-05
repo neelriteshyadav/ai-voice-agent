@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: orchestrator
+    static_configs: [{ targets: ["orchestrator:8080"] }]
+  - job_name: agent-workers
+    static_configs: [{ targets: ["agent-worker:9300"] }]

@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  orchestrator:
+    build: ./services/orchestrator
+    env_file: .env
+    ports: ["8080:8080"]
+    depends_on: [redis]
+  agent-worker:
+    build: ./services/agent
+    env_file: .env
+    environment:
+      - METRICS_PORT=9300
+    depends_on: [redis]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  prometheus:
+    image: prom/prometheus
+    volumes: ["./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml"]
+    ports: ["9090:9090"]
+  grafana:
+    image: grafana/grafana
+    volumes: ["./monitoring/grafana:/var/lib/grafana"]
+    ports: ["3000:3000"]

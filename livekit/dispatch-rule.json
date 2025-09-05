@@ -1,0 +1,11 @@
+{
+  "name": "PSTN \u2192 per-call room",
+  "rule": {
+    "dispatchRuleIndividual": {
+      "roomPrefix": "call-"
+    }
+  },
+  "room_config": {
+    "region": "us-central"
+  }
+}
