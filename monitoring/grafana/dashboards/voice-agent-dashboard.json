@@ -1,0 +1,351 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Voice Agent System - 100 Concurrent Calls",
+    "tags": ["voice-agent", "latency", "performance"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Overview",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(active_calls)",
+            "legendFormat": "Active Calls",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(active_rooms)",
+            "legendFormat": "Active Rooms", 
+            "refId": "B"
+          },
+          {
+            "expr": "rate(turns_total[5m]) * 60",
+            "legendFormat": "Turns/min",
+            "refId": "C"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(turn_rtt_ms_bucket[5m]))",
+            "legendFormat": "95th %ile RTT (ms)",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "displayMode": "list",
+              "orientation": "horizontal"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "End-to-End Latency Distribution",
+        "type": "heatmap",
+        "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(turn_rtt_ms_bucket[1m])) by (le)",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "scaleDistribution": {
+                "type": "linear"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Latency Percentiles Over Time",
+        "type": "timeseries",
+        "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(turn_rtt_ms_bucket[1m]))",
+            "legendFormat": "50th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(turn_rtt_ms_bucket[1m]))",
+            "legendFormat": "95th percentile",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(turn_rtt_ms_bucket[1m]))",
+            "legendFormat": "99th percentile",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Latency (ms)",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "line"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 400},
+                {"color": "red", "value": 600}
+              ]
+            },
+            "unit": "ms"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Calls and Queue Length",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+        "targets": [
+          {
+            "expr": "sum(active_calls)",
+            "legendFormat": "Active Calls",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(active_rooms)",
+            "legendFormat": "Active Rooms",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Count",
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 80},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Error Rates",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+        "targets": [
+          {
+            "expr": "rate(connection_errors_total[1m]) * 60",
+            "legendFormat": "Connection Errors/min",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(pipeline_errors_total[1m]) * 60",
+            "legendFormat": "Pipeline Errors/min",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(dispatch_errors_total[1m]) * 60",
+            "legendFormat": "Dispatch Errors/min",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Errors/min",
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Processing Time Distribution",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(processing_time_ms_bucket[1m]))",
+            "legendFormat": "50th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(processing_time_ms_bucket[1m]))",
+            "legendFormat": "95th percentile",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Processing Time (ms)",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2
+            },
+            "unit": "ms"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Room Duration Distribution",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(room_duration_seconds_bucket[1m]))",
+            "legendFormat": "50th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(room_duration_seconds_bucket[1m]))",
+            "legendFormat": "95th percentile",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Duration (seconds)",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2
+            },
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Webhook Events",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+        "targets": [
+          {
+            "expr": "rate(webhook_requests_total[1m]) * 60",
+            "legendFormat": "{{event_type}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Events/min",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Agent Dispatch Time",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(agent_dispatch_time_ms_bucket[1m]))",
+            "legendFormat": "95th percentile dispatch time",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "Dispatch Time (ms)",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2
+            },
+            "unit": "ms",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 500}
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "version": 1,
+    "schemaVersion": 27
+  }
+}

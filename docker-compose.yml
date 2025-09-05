@@ -1,29 +1,192 @@
 version: "3.9"
+
+x-agent-common: &agent-common
+  build: ./services/agent
+  env_file: .env
+  depends_on:
+    - redis
+    - orchestrator
+  restart: unless-stopped
+  deploy:
+    resources:
+      limits:
+        cpus: '1.0'
+        memory: 1024M
+      reservations:
+        cpus: '0.5'
+        memory: 512M
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:9300/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 40s
+
 services:
+  # Redis for job queue and caching
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Orchestrator service
   orchestrator:
     build: ./services/orchestrator
     env_file: .env
     ports: ["8080:8080"]
-    depends_on: [redis]
-  agent-worker:
-    build: ./services/agent
-    env_file: .env
-    environment:
-      - METRICS_PORT=9300
-    depends_on: [redis]
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1024M
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Agent workers (scaled for 100 concurrent calls)
+  agent-worker-1:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9300
+      - WORKER_ID=1
+
+  agent-worker-2:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9301
+      - WORKER_ID=2
+
+  agent-worker-3:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9302
+      - WORKER_ID=3
+
+  agent-worker-4:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9303
+      - WORKER_ID=4
+
+  agent-worker-5:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9304
+      - WORKER_ID=5
+
+  agent-worker-6:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9305
+      - WORKER_ID=6
+
+  agent-worker-7:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9306
+      - WORKER_ID=7
+
+  agent-worker-8:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9307
+      - WORKER_ID=8
+
+  agent-worker-9:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9308
+      - WORKER_ID=9
+
+  agent-worker-10:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9309
+      - WORKER_ID=10
+
+  # Monitoring stack
   prometheus:
-    image: prom/prometheus
-    volumes: ["./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml"]
+    image: prom/prometheus:latest
     ports: ["9090:9090"]
+    volumes:
+      - "./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml"
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1024M
+
   grafana:
-    image: grafana/grafana
-    volumes: ["./monitoring/grafana:/var/lib/grafana"]
+    image: grafana/grafana:latest
     ports: ["3000:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - "./monitoring/grafana:/var/lib/grafana"
+      - "./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards"
+      - "./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources"
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+  # Load balancer for agent workers (optional)
+  nginx:
+    image: nginx:alpine
+    ports: ["80:80"]
+    volumes:
+      - "./monitoring/nginx.conf:/etc/nginx/nginx.conf"
+    depends_on:
+      - orchestrator
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+    driver: bridge

@@ -1,0 +1,43 @@
+{
+  "name": "PSTN → per-call room optimized",
+  "rule": {
+    "dispatchRuleIndividual": {
+      "roomPrefix": "call-",
+      "pin": ""
+    }
+  },
+  "room_config": {
+    "region": "us-central",
+    "max_participants": 2,
+    "empty_timeout": 300,
+    "departure_timeout": 20,
+    "audio": {
+      "preset": "speech",
+      "codecs": [
+        {
+          "mime": "audio/opus",
+          "fmtp": "minptime=10;useinbandfec=1;stereo=0"
+        },
+        {
+          "mime": "audio/PCMU"
+        },
+        {
+          "mime": "audio/PCMA"
+        }
+      ]
+    },
+    "recording": {
+      "enabled": false
+    }
+  },
+  "sip_config": {
+    "audio": {
+      "sample_rate": 16000,
+      "channels": 1,
+      "codecs": ["opus", "PCMU", "PCMA"]
+    },
+    "dtmf": {
+      "enabled": true
+    }
+  }
+}

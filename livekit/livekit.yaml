@@ -1,0 +1,147 @@
+# LiveKit Server Configuration for 100 Concurrent Calls
+# Optimized for low latency voice processing
+
+port: 7880
+bind_addresses:
+  - ""
+
+# Redis configuration for scaling
+redis:
+  address: redis:6379
+  db: 0
+  username: ""
+  password: ""
+
+# API configuration
+keys:
+  # These should be set via environment variables
+  # LIVEKIT_API_KEY: your-api-key
+  # LIVEKIT_API_SECRET: your-api-secret
+
+# WebRTC configuration optimized for voice
+webrtc:
+  # ICE configuration for optimal connectivity
+  ice_servers:
+    - urls: ["stun:stun.l.google.com:19302"]
+  
+  # Audio settings optimized for voice
+  audio:
+    # Use Opus codec with optimized settings for voice
+    codecs:
+      - mime: "audio/opus"
+        fmtp: "minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0"
+    
+    # Buffer settings for low latency
+    jitter_buffer:
+      min_delay: 0
+      max_delay: 100
+    
+    # Echo cancellation and noise suppression
+    audio_processing:
+      echo_cancellation: true
+      noise_suppression: true
+      auto_gain_control: true
+
+# Room configuration
+room:
+  # Auto create rooms for SIP calls
+  auto_create: true
+  
+  # Default room settings optimized for voice calls
+  default_room_config:
+    name: ""
+    empty_timeout: 300s  # 5 minutes
+    departure_timeout: 20s
+    max_participants: 2  # SIP caller + AI agent
+    
+    # Audio settings
+    audio:
+      preset: "speech"  # Optimized for speech
+    
+    # Recording disabled by default for performance
+    recording:
+      enabled: false
+
+# SIP configuration
+sip:
+  # Inbound SIP configuration
+  inbound:
+    # Listen for SIP calls
+    listen_port: 5060
+    
+    # Audio settings optimized for telephony
+    audio:
+      # Use G.711 (PCMU/PCMA) for telephony compatibility
+      codecs: ["PCMU", "PCMA", "opus"]
+      sample_rate: 8000  # Standard telephony rate
+      channels: 1       # Mono for telephony
+    
+    # Dispatch rules for routing calls to rooms
+    dispatch_rules:
+      - rule_type: "individual"
+        room_prefix: "call-"
+        pin: ""
+    
+  # Outbound SIP configuration (if needed)
+  outbound:
+    enabled: false
+
+# Ingress configuration for SIP
+ingress:
+  rtmp_base_url: ""
+  whip_base_url: ""
+
+# Egress configuration
+egress:
+  # Disable by default for performance
+  enabled: false
+
+# Logging configuration
+logging:
+  level: "info"  # Use "debug" for troubleshooting
+  json: false
+  
+  # Component-specific logging levels
+  components:
+    webrtc: "info"
+    sip: "info"
+    room: "info"
+
+# Development settings
+development:
+  # Disable in production
+  disable_strict_config: false
+
+# Performance tuning
+performance:
+  # CPU settings
+  num_cpus: 0  # Use all available CPUs
+  
+  # Memory settings
+  memory_limit: "1GB"
+  
+  # Connection limits
+  max_connections: 1000
+  
+  # Bandwidth settings per room (in kbps)
+  max_bandwidth_per_room: 64  # 64 kbps for voice calls
+
+# Health check configuration
+health_check:
+  enabled: true
+  port: 8080
+  path: "/health"
+
+# Metrics configuration
+metrics:
+  enabled: true
+  port: 9090
+  path: "/metrics"
+
+# Region configuration for latency optimization
+region: "us-central"
+
+# Turn server configuration (if needed)
+turn:
+  enabled: false
+  # Configure if clients are behind restrictive NATs

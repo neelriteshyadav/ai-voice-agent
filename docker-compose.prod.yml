@@ -1,0 +1,367 @@
+# Production Docker Compose Configuration
+# Optimized for high-availability and performance
+
+version: "3.9"
+
+x-agent-common: &agent-common
+  build: ./services/agent
+  env_file: .env
+  depends_on:
+    - redis
+    - orchestrator
+  restart: unless-stopped
+  deploy:
+    resources:
+      limits:
+        cpus: '1.0'
+        memory: 1024M
+      reservations:
+        cpus: '0.5'
+        memory: 512M
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:9300/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 40s
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # Redis cluster for high availability
+  redis-master:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 300
+      --timeout 0
+    volumes:
+      - redis_master_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1GB
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Orchestrator with high availability
+  orchestrator-1:
+    build: ./services/orchestrator
+    env_file: .env
+    ports: ["8080:8080"]
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    environment:
+      - INSTANCE_ID=orchestrator-1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1GB
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  orchestrator-2:
+    build: ./services/orchestrator
+    env_file: .env
+    ports: ["8081:8080"]
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    environment:
+      - INSTANCE_ID=orchestrator-2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1GB
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Agent workers scaled for production load
+  agent-worker-1:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9300
+      - WORKER_ID=1
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-2:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9301
+      - WORKER_ID=2
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-3:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9302
+      - WORKER_ID=3
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-4:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9303
+      - WORKER_ID=4
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-5:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9304
+      - WORKER_ID=5
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-6:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9305
+      - WORKER_ID=6
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-7:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9306
+      - WORKER_ID=7
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-8:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9307
+      - WORKER_ID=8
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-9:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9308
+      - WORKER_ID=9
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-10:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9309
+      - WORKER_ID=10
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-11:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9310
+      - WORKER_ID=11
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-12:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9311
+      - WORKER_ID=12
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-13:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9312
+      - WORKER_ID=13
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-14:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9313
+      - WORKER_ID=14
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-15:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9314
+      - WORKER_ID=15
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-16:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9315
+      - WORKER_ID=16
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-17:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9316
+      - WORKER_ID=17
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-18:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9317
+      - WORKER_ID=18
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-19:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9318
+      - WORKER_ID=19
+      - REDIS_URL=redis://redis-master:6379
+
+  agent-worker-20:
+    <<: *agent-common
+    environment:
+      - METRICS_PORT=9319
+      - WORKER_ID=20
+      - REDIS_URL=redis://redis-master:6379
+
+  # Load balancer
+  nginx:
+    image: nginx:alpine
+    ports: 
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./monitoring/nginx-prod.conf:/etc/nginx/nginx.conf"
+      - "./ssl:/etc/nginx/ssl"  # SSL certificates
+    depends_on:
+      - orchestrator-1
+      - orchestrator-2
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports: ["9090:9090"]
+    volumes:
+      - "./monitoring/prometheus-prod.yml:/etc/prometheus/prometheus.yml"
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2GB
+
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3000:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_COOKIE_SAMESITE=strict
+    volumes:
+      - "./monitoring/grafana:/var/lib/grafana"
+      - "./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards"
+      - "./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources"
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1GB
+
+  # Log aggregation
+  loki:
+    image: grafana/loki:latest
+    ports: ["3100:3100"]
+    volumes:
+      - "./monitoring/loki.yml:/etc/loki/local-config.yaml"
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1GB
+
+  # Alerting
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports: ["9093:9093"]
+    volumes:
+      - "./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml"
+      - alertmanager_data:/alertmanager
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+volumes:
+  redis_master_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alertmanager_data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
