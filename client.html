@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>LiveKit + Pipecat Minimal Client</title>
+  <title>LiveKit + Pipecat Client (auto latency logger)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
   <style>
@@ -10,35 +10,41 @@
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
     button { margin: 0 8px 8px 0; padding: 10px 14px; border: 1px solid #9993; border-radius: 10px; cursor: pointer; }
     #status { margin: 12px 0; }
-    #logs { background: #000; color: #0f0; padding: 12px; white-space: pre-wrap; border-radius: 8px; max-height: 240px; overflow: auto; }
+    #logs { background: #111; color: #0f0; padding: 12px; white-space: pre-wrap; border-radius: 8px; max-height: 240px; overflow: auto; }
     .row { margin: 12px 0; }
     .pill { padding: 2px 8px; border-radius: 999px; border: 1px solid #9994; font-size: 12px; }
+    #latencyLog { margin-left: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; display:inline-block; min-width: 420px;}
   </style>
 </head>
 <body>
-  <h1>LiveKit media + Pipecat agent (minimal)</h1>
+  <h1>LiveKit media + Pipecat agent</h1>
 
   <div class="row">
     <button id="connectBtn">Connect</button>
     <button id="disconnectBtn" disabled>Disconnect</button>
     <button id="enableAudioBtn" disabled>Enable Audio</button>
     <button id="muteBtn" disabled>Mute</button>
-    <button id="latencyBtn" disabled>Beep &amp; Measure</button>
-    <span id="latency" class="pill">latency: —</span>
+    <span id="status" class="pill">disconnected</span>
   </div>
 
-  <div id="status">Status: <span id="statusText">disconnected</span></div>
+  <div class="row">
+    <strong>Latency:</strong> <span id="latencyLog">auto: 0 samples — avg N/A</span>
+  </div>
 
   <h3>Logs</h3>
   <div id="logs"></div>
 
-  <!-- Hidden remote audio element for the agent -->
+  <!-- Agent audio -->
   <audio id="remoteAudio" autoplay playsinline></audio>
 
+  <!-- IMPORTANT: load the probe BEFORE inline code that uses it -->
+  <script src="latency_probe.js"></script>
+
   <script>
-    // ---------- tiny helpers ----------
+    const { Room, RoomEvent, createLocalAudioTrack } = LivekitClient;
+
     const $ = (sel) => document.querySelector(sel);
-    const logEl = $('#logs');
+    const logEl = $('#logs'), statusEl = $('#status');
     function log(...args) {
       const line = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
       const t = new Date().toISOString().split('T')[1].replace('Z','');
@@ -46,75 +52,98 @@
       logEl.scrollTop = logEl.scrollHeight;
       console.log(...args);
     }
-    function setStatus(s) { $('#statusText').textContent = s; }
+    function setStatus(s) { statusEl.textContent = s; }
 
-    // ---------- LiveKit room state ----------
     let room = null;
     let localAudioTrack = null;
     let isMuted = false;
+    const remoteAudio = $('#remoteAudio');
+    let autoLogger = null;
 
     async function getTokenFromServer(roomName = 'demo-room') {
-      // change host/port if your token server runs elsewhere
       const id = 'user-' + Math.random().toString(36).slice(2, 8);
       const res = await fetch(`http://127.0.0.1:8787/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error(`token server error ${res.status}`);
-      const { url, token } = await res.json();
-      return { url, token, identity: id };
+      if (!res.ok) {
+        let detail = '';
+        try { const j = await res.json(); detail = j.error || JSON.stringify(j); } catch {}
+        throw new Error(`token server error ${res.status}: ${detail}`);
+      }
+      return res.json();
     }
 
     async function connect() {
       if (room) return;
+      const { url, token } = await getTokenFromServer();
+      log('🔑 got token');
 
-      // 1) fetch URL + JWT from your backend (never sign tokens in the browser)
-      const { url, token, identity } = await getTokenFromServer();
-      log('🔑 got token for', identity);
-
-      // 2) create room
-      room = new LivekitClient.Room({
+      room = new Room({
         adaptiveStream: true,
         dynacast: true,
         audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
 
-      // 3) wire events
       room
-        .on(LivekitClient.RoomEvent.ParticipantConnected, p => log('👥 participant joined:', p.identity))
-        .on(LivekitClient.RoomEvent.ParticipantDisconnected, p => log('👋 participant left:', p?.identity))
-        .on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        .on(RoomEvent.ParticipantConnected, p => log('👥 participant joined:', p.identity))
+        .on(RoomEvent.ParticipantDisconnected, p => log('👋 participant left:', p?.identity))
+        .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           log('🎧 TrackSubscribed', track.kind, 'from', participant.identity);
           if (track.kind === 'audio') {
-            const remoteEl = track.attach();              // returns <audio> with MediaStream
-            const sink = document.getElementById('remoteAudio');
-            sink.srcObject = remoteEl.srcObject;          // use our dedicated element
-            $('#latencyBtn').disabled = false;
+            const tmp = track.attach();
+            remoteAudio.srcObject = tmp.srcObject;
+
+            // Start auto logger once both local+remote are ready
+            maybeStartAutoLogger();
           }
         })
-        .on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+        .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           log('➖ TrackUnsubscribed', track.kind, 'from', participant.identity);
         })
-        .on(LivekitClient.RoomEvent.ConnectionStateChanged, state => {
+        .on(RoomEvent.ConnectionStateChanged, state => {
           log('🔌 connection state:', state);
           setStatus(state);
         })
-        .on(LivekitClient.RoomEvent.AudioPlaybackStatusChanged, () => {
+        .on(RoomEvent.AudioPlaybackStatusChanged, () => {
           log('🔈 canPlaybackAudio=', room.canPlaybackAudio);
           $('#enableAudioBtn').disabled = room.canPlaybackAudio;
         });
 
-      // 4) connect
       await room.connect(url, token);
       setStatus('connected');
-      $('#disconnectBtn').disabled = false;
-      $('#enableAudioBtn').disabled = room.canPlaybackAudio;
+      $('#disconnectBtn').disabled = true; // until mic is up
 
-      // 5) publish microphone
-      localAudioTrack = await LivekitClient.createLocalAudioTrack();
+      // publish microphone
+      localAudioTrack = await createLocalAudioTrack();
       await room.localParticipant.publishTrack(localAudioTrack);
       log('🎙️ mic published');
+      $('#disconnectBtn').disabled = false;
+      $('#enableAudioBtn').disabled = room.canPlaybackAudio;
+      $('#muteBtn').disabled = false;
 
-      // 6) user gesture may still be required to start audio on some browsers
-      if (!room.canPlaybackAudio) {
-        log('⚠️ Audio playback blocked by browser; click "Enable Audio".'); // see docs event. :contentReference[oaicite:1]{index=1}
+      // If remote already present, arm logger
+      maybeStartAutoLogger();
+    }
+
+    function maybeStartAutoLogger() {
+      if (autoLogger) return;
+      if (!localAudioTrack) return;
+      if (!remoteAudio.srcObject) return;
+
+      // sanity check export
+      if (!window.LatencyProbe || typeof window.LatencyProbe.autoAttach !== 'function') {
+        console.error('LatencyProbe export missing or wrong:', window.LatencyProbe);
+        return;
+      }
+
+      try {
+        autoLogger = window.LatencyProbe.autoAttach({
+          room,
+          localTrack: localAudioTrack,
+          remoteAudioEl: remoteAudio,
+          logSelector: '#latencyLog',
+        });
+        log('⏱️ Auto latency logger armed');
+      } catch (e) {
+        log('⚠️ Could not start auto latency logger:', e.message);
       }
     }
 
@@ -126,6 +155,7 @@
           localAudioTrack.stop();
           localAudioTrack = null;
         }
+        if (autoLogger) { autoLogger.stop(); autoLogger = null; }
         await room.disconnect();
       } finally {
         room = null;
@@ -133,17 +163,17 @@
         $('#disconnectBtn').disabled = true;
         $('#enableAudioBtn').disabled = true;
         $('#muteBtn').disabled = true;
-        $('#latencyBtn').disabled = true;
+        remoteAudio.srcObject = null;
         log('🔌 disconnected');
+        $('#latencyLog').textContent = 'auto: 0 samples — avg N/A';
       }
     }
 
     async function enableAudio() {
       if (!room) return;
-      await room.startAudio(); // attempt to resume audio playback (autoplay policy) :contentReference[oaicite:2]{index=2}
+      await room.startAudio();
       $('#enableAudioBtn').disabled = room.canPlaybackAudio;
-      $('#muteBtn').disabled = false;
-      log('🔊 audio started (autoplay resumed if previously blocked)');
+      log('🔊 audio started');
     }
 
     async function toggleMute() {
@@ -154,72 +184,15 @@
       log(isMuted ? '🔇 mic muted' : '🎙️ mic unmuted');
     }
 
-    // ---- Latency probe: play a short beep locally and detect first remote audio onset ----
-    async function beepAndMeasure() {
-      const sink = document.getElementById('remoteAudio');
-      if (!sink.srcObject) {
-        log('ℹ️ no remote audio yet; speak to the agent first.');
-        return;
-      }
-
-      // 1) set up analyzer on the remote stream
-      const remoteCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const remoteSrc = remoteCtx.createMediaStreamSource(sink.srcObject);
-      const analyser = remoteCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      remoteSrc.connect(analyser);
-      const buf = new Uint8Array(analyser.fftSize);
-
-      // 2) play a quiet local beep (this should trigger agent echo pipeline)
-      const localCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = localCtx.createOscillator();
-      const gain = localCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 880;
-      gain.gain.value = 0.15;
-      osc.connect(gain).connect(localCtx.destination);
-
-      // 3) detect remote audio onset
-      const threshold = 35; // rough RMS threshold
-      function rms() {
-        analyser.getByteTimeDomainData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
-        return Math.sqrt(sum / buf.length) * 100;
-      }
-
-      const t0 = performance.now();
-      osc.start();
-      osc.stop(localCtx.currentTime + 0.18);
-
-      const wait = (resolve) => {
-        if (rms() > threshold) {
-          const ms = Math.round(performance.now() - t0);
-          $('#latency').textContent = `latency: ${ms} ms`;
-          log(`⏱️ mouth→ear latency: ${ms} ms`);
-          resolve();
-          return;
-        }
-        requestAnimationFrame(() => wait(resolve));
-      };
-      await new Promise((r) => requestAnimationFrame(() => wait(r)));
-    }
-
-    // ---------- UI wiring ----------
+    // UI
     $('#connectBtn').addEventListener('click', async () => {
       $('#connectBtn').disabled = true;
-      try { await connect(); $('#muteBtn').disabled = false; }
+      try { await connect(); }
       catch (e) { log('❌ connect error', e); $('#connectBtn').disabled = false; }
     });
-
     $('#disconnectBtn').addEventListener('click', disconnect);
     $('#enableAudioBtn').addEventListener('click', enableAudio);
     $('#muteBtn').addEventListener('click', toggleMute);
-    $('#latencyBtn').addEventListener('click', beepAndMeasure);
-
-    // helpful for faster connects on SPA-style flows
-    // room?.prepareConnection(url, token) exists when using ESM; UMD doesn't expose prepareConnection easily.
-    // See LiveKit docs for more options (adaptiveStream, dynacast, events). :contentReference[oaicite:3]{index=3}
   </script>
 </body>
 </html>
