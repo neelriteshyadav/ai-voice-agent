@@ -1,0 +1,12 @@
+requests>=2.28.0
+websockets>=11.0.0
+python-dotenv>=1.0.0
+flask>=2.0.0
+flask-cors>=4.0.0
+numpy>=1.21.0
+scipy>=1.7.0
+# LiveKit server SDK for tokens
+livekit-api>=0.6.5
+
+# Pipecat + extras we use
+pipecat-ai[livekit,deepgram,elevenlabs]>=0.0.0
